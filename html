@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Дарт Вейдер: Побег из Космической Лаборатории</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #05060b;
+            font-family: 'Inter', sans-serif;
+            color: #e2e8f0;
+        }
+        .font-scifi {
+            font-family: 'Orbitron', monospace;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+        .glow-red {
+            text-shadow: 0 0 12px rgba(239, 68, 68, 0.8), 0 0 24px rgba(220, 38, 38, 0.5);
+        }
+        .glow-cyan {
+            text-shadow: 0 0 10px rgba(6, 182, 212, 0.8);
+        }
+        .glass-panel {
+            background: rgba(13, 17, 28, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+        }
+    </style>
+</head>
+<body class="relative flex items-center justify-center">
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Top HUD Overlay -->
+    <div id="hud" class="absolute top-0 left-0 w-full p-4 pointer-events-none flex justify-between items-start z-10 transition-opacity duration-300">
+        <!-- Health & Energy -->
+        <div class="glass-panel rounded-xl p-3.5 flex flex-col gap-2 min-w-[210px] pointer-events-auto border-red-500/30">
+            <div class="flex items-center justify-between">
+                <span class="text-xs uppercase tracking-wider text-red-400 font-scifi">Энергощит:</span>
+                <div id="healthBars" class="flex gap-1.5">
+                    <!-- Dynamic Health Units -->
+                </div>
+            </div>
+            <!-- Force Cooldown Bar -->
+            <div>
+                <div class="flex justify-between text-[11px] text-gray-400 mb-1 font-scifi">
+                    <span>СИЛА [F / ПКМ]</span>
+                    <span id="forceStatus" class="text-red-400">ГОТОВА</span>
+                </div>
+                <div class="w-full bg-gray-800 rounded-full h-2 overflow-hidden border border-red-950">
+                    <div id="forceMeter" class="bg-red-600 h-full w-full transition-all duration-75"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mission Stats -->
+        <div class="glass-panel rounded-xl p-3.5 flex items-center gap-6 pointer-events-auto border-cyan-500/30">
+            <!-- Crystals -->
+            <div class="flex items-center gap-2">
+                <span class="inline-block text-cyan-400 text-lg animate-pulse">💠</span>
+                <div>
+                    <div class="text-[10px] text-gray-400 font-scifi uppercase">Кибер-кристаллы</div>
+                    <div id="crystalCount" class="font-scifi font-bold text-cyan-300 text-lg">0 / 0</div>
+                </div>
+            </div>
+            <!-- Level & Timer -->
+            <div class="flex items-center gap-4 border-l border-gray-700/80 pl-4">
+                <div>
+                    <div class="text-[10px] text-gray-400 font-scifi uppercase">Сектор</div>
+                    <div id="levelDisplay" class="font-scifi font-bold text-gray-200">1-1</div>
+                </div>
+                <div>
+                    <div class="text-[10px] text-gray-400 font-scifi uppercase">Таймер</div>
+                    <div id="timerDisplay" class="font-scifi font-bold text-yellow-400">00:00.0</div>
+                </div>
+                <button id="btnPause" class="pointer-events-auto bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg text-xs font-scifi border border-gray-600 transition">
+                    ⏸ [ESC]
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen Modal -->
+    <div id="startScreen" class="absolute inset-0 flex items-center justify-center bg-black/85 z-20 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-lg w-full rounded-2xl p-8 text-center border-red-500/50 shadow-2xl shadow-red-950/40">
+            <div class="inline-block px-3 py-1 bg-red-950/70 border border-red-500/40 text-red-400 font-scifi text-xs rounded-full uppercase tracking-widest mb-3">
+                Имперская база «Звезда Смерти»
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-black font-scifi text-white tracking-wide glow-red mb-3">
+                Побег из Лаборатории
+            </h1>
+            <p class="text-sm text-gray-300 leading-relaxed mb-6">
+                В исследовательском секторе произошёл сбой ИИ дроидов. Собери нестабильные кибер-кристаллы, сокруши восставших охранных дронов Силой и доберись до эвакуационного шлюза!
+            </p>
+
+            <!-- Control Briefing -->
+            <div class="grid grid-cols-2 gap-3 text-left text-xs bg-black/50 p-4 rounded-xl border border-gray-800 mb-6 font-mono">
+                <div><span class="text-red-400 font-bold">A / D</span> или <span class="text-red-400 font-bold">← / →</span> : Бег</div>
+                <div><span class="text-red-400 font-bold">W / Пробел</span> : Прыжок (×2)</div>
+                <div><span class="text-red-400 font-bold">F / ПКМ</span> : Толчок Силы</div>
+                <div><span class="text-red-400 font-bold">P / Esc</span> : Пауза</div>
+            </div>
+
+            <button id="btnStartGame" class="w-full py-4 rounded-xl font-scifi font-bold text-white bg-gradient-to-r from-red-700 via-red-600 to-red-800 hover:from-red-600 hover:to-red-700 active:scale-95 transition-all duration-150 shadow-lg shadow-red-600/30 tracking-wider">
+                НАЧАТЬ МИССИЮ
+            </button>
+        </div>
+    </div>
+
+    <!-- Win Screen Modal -->
+    <div id="winScreen" class="hidden absolute inset-0 flex items-center justify-center bg-black/85 z-20 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-md w-full rounded-2xl p-8 text-center border-cyan-500/50 shadow-2xl shadow-cyan-950/40">
+            <span class="text-4xl mb-2 block animate-bounce">🛸</span>
+            <h2 class="text-3xl font-black font-scifi text-cyan-300 tracking-wide glow-cyan mb-2">
+                СЕКТОР ЗАЧИЩЕН!
+            </h2>
+            <p class="text-sm text-gray-300 mb-4" id="winStatsText">Шлюз разблокирован. Все кристаллы извлечены.</p>
+
+            <div class="flex gap-3 mt-6">
+                <button id="btnRestartWin" class="flex-1 py-3 rounded-xl font-scifi text-xs font-bold text-gray-300 bg-gray-800 hover:bg-gray-700 transition">
+                    ПОВТОРИТЬ
+                </button>
+                <button id="btnNextLevel" class="flex-1 py-3 rounded-xl font-scifi text-xs font-bold text-white bg-cyan-600 hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/30">
+                    СЛЕДУЮЩИЙ СЕКТОР →
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen Modal -->
+    <div id="gameOverScreen" class="hidden absolute inset-0 flex items-center justify-center bg-black/85 z-20 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-md w-full rounded-2xl p-8 text-center border-red-600/60 shadow-2xl shadow-red-950/60">
+            <span class="text-4xl mb-2 block">💥</span>
+            <h2 class="text-3xl font-black font-scifi text-red-500 tracking-wide glow-red mb-2">
+                СИСТЕМЫ ОТКЛЮЧЕНЫ
+            </h2>
+            <p class="text-sm text-gray-300 mb-6">
+                Костюм жизнеобеспечения критически поврежден в лаборатории.
+            </p>
+            <button id="btnRetry" class="w-full py-3.5 rounded-xl font-scifi font-bold text-white bg-red-700 hover:bg-red-600 active:scale-95 transition shadow-lg shadow-red-700/40">
+                ВОЗРОДИТЬСЯ НА ЧЕКПОИНТЕ
+            </button>
+        </div>
+    </div>
+
+    <!-- Pause Screen Modal -->
+    <div id="pauseScreen" class="hidden absolute inset-0 flex items-center justify-center bg-black/75 z-20 backdrop-blur-sm p-4">
+        <div class="glass-panel max-w-sm w-full rounded-2xl p-6 text-center border-gray-600">
+            <h2 class="text-2xl font-bold font-scifi text-white mb-4">ПАУЗА СИСТЕМЫ</h2>
+            <div class="flex flex-col gap-3">
+                <button id="btnResume" class="w-full py-3 rounded-xl font-scifi text-xs font-bold text-white bg-red-700 hover:bg-red-600 transition">
+                    ПРОДОЛЖИТЬ
+                </button>
+                <button id="btnRestartLevel" class="w-full py-3 rounded-xl font-scifi text-xs font-bold text-gray-300 bg-gray-800 hover:bg-gray-700 transition">
+                    НАЧАТЬ ЗАНОВО
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Touch Controls -->
+    <div id="touchControls" class="absolute bottom-4 inset-x-4 flex justify-between pointer-events-none md:hidden z-10 opacity-70">
+        <div class="flex gap-2 pointer-events-auto">
+            <button id="touchLeft" class="w-14 h-14 rounded-2xl bg-gray-900/80 border border-gray-700 text-2xl active:bg-red-900/50">◀</button>
+            <button id="touchRight" class="w-14 h-14 rounded-2xl bg-gray-900/80 border border-gray-700 text-2xl active:bg-red-900/50">▶</button>
+        </div>
+        <div class="flex gap-2 pointer-events-auto">
+            <button id="touchForce" class="w-14 h-14 rounded-2xl bg-red-900/60 border border-red-600 text-lg font-scifi active:scale-95">⚡</button>
+            <button id="touchJump" class="w-14 h-14 rounded-2xl bg-gray-900/80 border border-gray-700 text-xl font-scifi active:bg-red-900/50">▲</button>
+        </div>
+    </div>
+
+    <script>
+        /* Web Audio API Sound Generator for 8-bit / Synth SFX (Zero external mp3/wav files) */
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playJump() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(420, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.16);
+            }
+
+            playDoubleJump() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(680, this.ctx.currentTime + 0.18);
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.19);
+            }
+
+            playForcePush() {
+                if (!this.ctx) return;
+                // White noise burst + low synth drone
+                const bufferSize = this.ctx.sampleRate * 0.35;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (this.ctx.sampleRate * 0.08));
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(400, this.ctx.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.35);
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.45, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
+            }
+
+            playCrystal() {
+                if (!this.ctx) return;
+                const notes = [587.33, 880, 1174.66]; // D5, A5, D6 arpeggio
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.05);
+                    gain.gain.setValueAtTime(0.18, this.ctx.currentTime + idx * 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.05 + 0.25);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.05);
+                    osc.stop(this.ctx.currentTime + idx * 0.05 + 0.26);
+                });
+            }
+
+            playHit() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(40, this.ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.21);
+            }
+
+            playWin() {
+                if (!this.ctx) return;
+                const chords = [440, 554.37, 659.25, 880];
+                chords.forEach((f, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(f, this.ctx.currentTime + i * 0.09);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime + i * 0.09);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + i * 0.09 + 0.5);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + i * 0.09);
+                    osc.stop(this.ctx.currentTime + i * 0.09 + 0.52);
+                });
+            }
+        }
+
+        const audio = new SoundFX();
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI references
+        const hudEl = document.getElementById('hud');
+        const healthBarsEl = document.getElementById('healthBars');
+        const forceMeterEl = document.getElementById('forceMeter');
+        const forceStatusEl = document.getElementById('forceStatus');
+        const crystalCountEl = document.getElementById('crystalCount');
+        const levelDisplayEl = document.getElementById('levelDisplay');
+        const timerDisplayEl = document.getElementById('timerDisplay');
+        const startScreenEl = document.getElementById('startScreen');
+        const winScreenEl = document.getElementById('winScreen');
+        const gameOverScreenEl = document.getElementById('gameOverScreen');
+        const pauseScreenEl = document.getElementById('pauseScreen');
+        const winStatsTextEl = document.getElementById('winStatsText');
+
+        let currentLevel = 1;
+        let gameState = 'START'; // 'START', 'PLAYING', 'PAUSED', 'GAMEOVER', 'WIN'
+        let levelStartTime = 0;
+        let elapsedMilliseconds = 0;
+
+        // Input Tracking
+        const keys = {
+            left: false,
+            right: false,
+            up: false,
+            down: false,
+            force: false
+        };
+
+        // Camera
+        const camera = {
+            x: 0,
+            y: 0,
+            viewportW: window.innerWidth,
+            viewportH: window.innerHeight
+        };
+
+        // Resize Canvas dynamically
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            camera.viewportW = canvas.width;
+            camera.viewportH = canvas.height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Physics constants
+        const GRAVITY = 0.52;
+        const MOVE_SPEED = 5.2;
+        const JUMP_FORCE = -11.5;
+        const DOUBLE_JUMP_FORCE = -10.0;
+        const COYOTE_FRAMES = 7; // ~110ms at 60fps
+
+        const player = {
+            x: 100,
+            y: 300,
+            vx: 0,
+            vy: 0,
+            width: 26,
+            height: 48,
+            facingRight: true,
+            onGround: false,
+            jumpsLeft: 2,
+            coyoteTimer: 0,
+            health: 3,
+            maxHealth: 3,
+            invulnerableTimer: 0,
+            forceCooldown: 0,
+            forceMaxCooldown: 80, // ~1.3 seconds
+            capeSwing: 0,
+            saberGlowTimer: 0,
+            checkpointX: 100,
+            checkpointY: 300
+        };
+
+        // World Collections
+        let platforms = [];
+        let crystals = [];
+        let enemies = [];
+        let particles = [];
+        let shockwaves = [];
+        let checkpoints = [];
+        let finishPortal = { x: 0, y: 0, width: 44, height: 75, active: false };
+        let stars = [];
+        let worldWidth = 3200;
+        let totalCrystals = 0;
+        let collectedCrystals = 0;
+
+        function generateStars() {
+            stars = [];
+            for (let i = 0; i < 180; i++) {
+                stars.push({
+                    x: Math.random() * 2000,
+                    y: Math.random() * 1200,
+                    size: Math.random() * 2.2 + 0.6,
+                    speed: Math.random() * 0.15 + 0.05,
+                    pulse: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        // ProcGen: Guaranteed beatable platform layout
+        function generateLevel(levelNum) {
+            platforms = [];
+            crystals = [];
+            enemies = [];
+            particles = [];
+            shockwaves = [];
+            checkpoints = [];
+
+            worldWidth = 2600 + levelNum * 700;
+            totalCrystals = 0;
+            collectedCrystals = 0;
+
+            // Spawn ground start area
+            platforms.push({ x: 0, y: 520, width: 420, height: 80, type: 'start' });
+
+            player.x = 80;
+            player.y = 440;
+            player.vx = 0;
+            player.vy = 0;
+            player.checkpointX = 80;
+            player.checkpointY = 440;
+            player.health = player.maxHealth;
+
+            let curX = 420;
+            let curY = 520;
+
+            // Generate procedural platforms
+            while (curX < worldWidth - 450) {
+                // Golden rule of ProcGen: Platform jump delta never exceeds reachability
+                // Max vertical jump ~ 130px. Safe jump: 40px to 95px
+                const deltaY = (Math.random() * 140 - 70);
+                curY = Math.max(240, Math.min(560, curY + deltaY));
+
+                const gap = 85 + Math.random() * 95;
+                const platWidth = 140 + Math.random() * 180;
+
+                const plat = {
+                    x: curX + gap,
+                    y: curY,
+                    width: platWidth,
+                    height: 28,
+                    type: Math.random() > 0.75 ? 'moving' : 'solid',
+                    originX: curX + gap,
+                    moveRange: 70,
+                    moveSpeed: (Math.random() * 1.5 + 0.8) * (Math.random() > 0.5 ? 1 : -1)
+                };
+                platforms.push(plat);
+
+                // Add Kyber crystals above platform
+                if (Math.random() > 0.25) {
+                    const count = Math.floor(Math.random() * 3) + 1;
+                    for (let c = 0; c < count; c++) {
+                        crystals.push({
+                            x: plat.x + 35 + c * 32,
+                            y: plat.y - 40 - (c % 2 === 0 ? 0 : 15),
+                            radius: 9,
+                            collected: false,
+                            pulseOffset: Math.random() * 10
+                        });
+                        totalCrystals++;
+                    }
+                }
+
+                // Add Patrol Droid on long platforms
+                if (platWidth > 180 && Math.random() > 0.35) {
+                    enemies.push({
+                        x: plat.x + platWidth / 2,
+                        y: plat.y - 28,
+                        width: 28,
+                        height: 26,
+                        vx: Math.random() > 0.5 ? 1.4 : -1.4,
+                        vy: 0,
+                        platform: plat,
+                        alive: true,
+                        stunnedTimer: 0,
+                        hoverAngle: Math.random() * Math.PI
+                    });
+                }
+
+                // Add Checkpoint beacon around 45% mark
+                if (checkpoints.length === 0 && curX > worldWidth * 0.45) {
+                    checkpoints.push({
+                        x: plat.x + platWidth / 2,
+                        y: plat.y - 45,
+                        width: 24,
+                        height: 45,
+                        activated: false
+                    });
+                }
+
+                curX = plat.x + platWidth;
+            }
+
+            // Finish platform & Airlock
+            const finishPlat = { x: worldWidth - 380, y: 520, width: 420, height: 80, type: 'finish' };
+            platforms.push(finishPlat);
+
+            finishPortal = {
+                x: worldWidth - 220,
+                y: finishPlat.y - 74,
+                width: 44,
+                height: 74,
+                active: true
+            };
+
+            // Safeguard at least 1 crystal exists
+            if (totalCrystals === 0) {
+                crystals.push({ x: 300, y: 460, radius: 9, collected: false, pulseOffset: 0 });
+                totalCrystals = 1;
+            }
+
+            updateHUD();
+        }
+
+        window.addEventListener('keydown', (e) => {
+            audio.init();
+            if (e.repeat) return;
+
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+
+            if (e.code === 'KeyW' || e.code === 'Space' || e.code === 'ArrowUp') {
+                keys.up = true;
+                handleJump();
+            }
+
+            if (e.code === 'KeyF') {
+                useForcePush();
+            }
+
+            if (e.code === 'KeyP' || e.code === 'Escape') {
+                togglePause();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+            if (e.code === 'KeyW' || e.code === 'Space' || e.code === 'ArrowUp') keys.up = false;
+        });
+
+        // Mouse Right Click for Force Push
+        window.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            audio.init();
+            useForcePush();
+        });
+
+        // Mobile touch controls bindings
+        function setupTouchBtn(id, pressAction, releaseAction) {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                audio.init();
+                pressAction();
+            }, { passive: false });
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                if (releaseAction) releaseAction();
+            }, { passive: false });
+        }
+
+        setupTouchBtn('touchLeft', () => { keys.left = true; }, () => { keys.left = false; });
+        setupTouchBtn('touchRight', () => { keys.right = true; }, () => { keys.right = false; });
+        setupTouchBtn('touchJump', () => { handleJump(); });
+        setupTouchBtn('touchForce', () => { useForcePush(); });
+
+        function handleJump() {
+            if (gameState !== 'PLAYING') return;
+
+            // 1. Coyote Time or Regular ground jump
+            if (player.onGround || player.coyoteTimer > 0) {
+                player.vy = JUMP_FORCE;
+                player.onGround = false;
+                player.coyoteTimer = 0;
+                player.jumpsLeft = 1; // 1 jump remaining
+                audio.playJump();
+                createDustParticles(player.x + player.width / 2, player.y + player.height, 8);
+            }
+            // 2. Air Double Jump
+            else if (player.jumpsLeft > 0) {
+                player.vy = DOUBLE_JUMP_FORCE;
+                player.jumpsLeft--;
+                audio.playDoubleJump();
+                createSithAuraParticles(player.x + player.width / 2, player.y + player.height / 2, 10);
+            }
+        }
+
+        function useForcePush() {
+            if (gameState !== 'PLAYING' || player.forceCooldown > 0) return;
+
+            player.forceCooldown = player.forceMaxCooldown;
+            audio.playForcePush();
+
+            const pCenterX = player.x + player.width / 2;
+            const pCenterY = player.y + player.height / 2;
+
+            // Spawn visual shockwave
+            shockwaves.push({
+                x: pCenterX,
+                y: pCenterY,
+                radius: 12,
+                maxRadius: 175,
+                alpha: 1.0
+            });
+
+            // Physics blast against enemies
+            const FORCE_RADIUS = 180;
+            const FORCE_IMPULSE = 13.5;
+
+            enemies.forEach(enemy => {
+                if (!enemy.alive) return;
+                const eCenterX = enemy.x + enemy.width / 2;
+                const eCenterY = enemy.y + enemy.height / 2;
+                const dx = eCenterX - pCenterX;
+                const dy = eCenterY - pCenterY;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist < FORCE_RADIUS && dist > 0) {
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+
+                    enemy.vx = nx * FORCE_IMPULSE;
+                    enemy.vy = (ny * FORCE_IMPULSE) - 4; // lift upward
+                    enemy.stunnedTimer = 45; // Stunned for 0.75s
+
+                    createHitSpark(eCenterX, eCenterY);
+                }
+            });
+        }
+
+        function createDustParticles(x, y, count = 6) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x + (Math.random() * 16 - 8),
+                    y: y + (Math.random() * 4 - 2),
+                    vx: (Math.random() * 3 - 1.5),
+                    vy: -(Math.random() * 1.5 + 0.2),
+                    size: Math.random() * 3.5 + 1.5,
+                    color: 'rgba(180, 195, 215, 0.7)',
+                    life: 20
+                });
+            }
+        }
+
+        function createSithAuraParticles(x, y, count = 10) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x + (Math.random() * 20 - 10),
+                    y: y + (Math.random() * 20 - 10),
+                    vx: (Math.random() * 4 - 2),
+                    vy: (Math.random() * 4 - 2),
+                    size: Math.random() * 4 + 2,
+                    color: 'rgba(239, 68, 68, 0.9)',
+                    life: 25
+                });
+            }
+        }
+
+        function createHitSpark(x, y) {
+            for (let i = 0; i < 14; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() * 8 - 4),
+                    vy: (Math.random() * 8 - 4),
+                    size: Math.random() * 3 + 1,
+                    color: Math.random() > 0.5 ? '#f87171' : '#38bdf8',
+                    life: 22
+                });
+            }
+        }
+
+        function updatePlayer() {
+            // Horizontal acceleration & direct response
+            if (keys.left) {
+                player.vx = -MOVE_SPEED;
+                player.facingRight = false;
+            } else if (keys.right) {
+                player.vx = MOVE_SPEED;
+                player.facingRight = true;
+            } else {
+                player.vx = 0;
+            }
+
+            // Gravity
+            player.vy += GRAVITY;
+            if (player.vy > 14) player.vy = 14; // Terminal fall velocity
+
+            // Update timers
+            if (player.forceCooldown > 0) player.forceCooldown--;
+            if (player.invulnerableTimer > 0) player.invulnerableTimer--;
+
+            // Move Horizontally
+            player.x += player.vx;
+
+            // Moving platform logic
+            platforms.forEach(p => {
+                if (p.type === 'moving') {
+                    p.x += p.moveSpeed;
+                    if (Math.abs(p.x - p.originX) > p.moveRange) {
+                        p.moveSpeed *= -1;
+                    }
+                }
+            });
+
+            // Check Horizontal collisions
+            platforms.forEach(plat => {
+                if (checkAABB(player, plat)) {
+                    if (player.vx > 0) player.x = plat.x - player.width;
+                    else if (player.vx < 0) player.x = plat.x + plat.width;
+                }
+            });
+
+            // Move Vertically
+            player.y += player.vy;
+            let wasOnGround = player.onGround;
+            player.onGround = false;
+
+            // Check Vertical collisions
+            platforms.forEach(plat => {
+                if (checkAABB(player, plat)) {
+                    if (player.vy > 0) {
+                        // Landing on top
+                        player.y = plat.y - player.height;
+                        player.vy = 0;
+                        player.onGround = true;
+                        player.jumpsLeft = 2; // replenish double jump
+                        player.coyoteTimer = COYOTE_FRAMES; // reset coyote frames
+
+                        // Carry on moving platform
+                        if (plat.type === 'moving') {
+                            player.x += plat.moveSpeed;
+                        }
+                    } else if (player.vy < 0) {
+                        // Hitting ceiling
+                        player.y = plat.y + plat.height;
+                        player.vy = 0;
+                    }
+                }
+            });
+
+            // Coyote Time countdown when falling off ledge
+            if (!player.onGround) {
+                if (wasOnGround && player.vy >= 0) {
+                    player.coyoteTimer = COYOTE_FRAMES;
+                } else if (player.coyoteTimer > 0) {
+                    player.coyoteTimer--;
+                }
+            }
+
+            // Cape swing angle animation
+            player.capeSwing = (player.vx * 0.18) + Math.sin(Date.now() * 0.008) * 0.05;
+
+            // Screen / Void fall check
+            if (player.y > 800) {
+                playerTakeDamage(true);
+            }
+
+            // Crystals Collection
+            crystals.forEach(c => {
+                if (!c.collected) {
+                    const dx = (player.x + player.width / 2) - c.x;
+                    const dy = (player.y + player.height / 2) - c.y;
+                    if (Math.hypot(dx, dy) < player.width + c.radius) {
+                        c.collected = true;
+                        collectedCrystals++;
+                        audio.playCrystal();
+                        createHitSpark(c.x, c.y);
+                        updateHUD();
+                    }
+                }
+            });
+
+            // Checkpoints Check
+            checkpoints.forEach(cp => {
+                if (!cp.activated) {
+                    if (checkAABB(player, cp)) {
+                        cp.activated = true;
+                        player.checkpointX = cp.x;
+                        player.checkpointY = cp.y - 10;
+                        audio.playCrystal();
+                    }
+                }
+            });
+
+            // Exit Airlock Reach
+            if (checkAABB(player, finishPortal)) {
+                handleVictory();
+            }
+        }
+
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                if (!enemy.alive) return;
+
+                if (enemy.stunnedTimer > 0) {
+                    enemy.stunnedTimer--;
+                    // Still apply gravity and momentum
+                    enemy.vy += GRAVITY * 0.6;
+                    enemy.x += enemy.vx;
+                    enemy.y += enemy.vy;
+                    enemy.vx *= 0.94; // Friction damping
+
+                    // Fell into the void
+                    if (enemy.y > 850) enemy.alive = false;
+                    return;
+                }
+
+                // Regular patrolling logic
+                enemy.hoverAngle += 0.08;
+                enemy.x += enemy.vx;
+
+                // Turn around at platform edges
+                if (enemy.platform) {
+                    if (enemy.x < enemy.platform.x) {
+                        enemy.x = enemy.platform.x;
+                        enemy.vx = Math.abs(enemy.vx);
+                    } else if (enemy.x + enemy.width > enemy.platform.x + enemy.platform.width) {
+                        enemy.x = enemy.platform.x + enemy.platform.width - enemy.width;
+                        enemy.vx = -Math.abs(enemy.vx);
+                    }
+                }
+
+                // Collision with Darth Vader
+                if (player.invulnerableTimer === 0 && checkAABB(player, enemy)) {
+                    playerTakeDamage(false);
+                    // Push player back slightly
+                    player.vx = enemy.vx > 0 ? 6 : -6;
+                    player.vy = -5;
+                }
+            });
+        }
+
+        function playerTakeDamage(fallIntoVoid = false) {
+            audio.playHit();
+            createHitSpark(player.x + player.width / 2, player.y + player.height / 2);
+
+            if (fallIntoVoid) {
+                player.health = Math.max(0, player.health - 1);
+                player.x = player.checkpointX;
+                player.y = player.checkpointY;
+                player.vx = 0;
+                player.vy = 0;
+                player.invulnerableTimer = 60;
+            } else {
+                player.health--;
+                player.invulnerableTimer = 65; // ~1 second invulnerability
+            }
+
+            updateHUD();
+
+            if (player.health <= 0) {
+                triggerGameOver();
+            }
+        }
+
+        function checkAABB(rect1, rect2) {
+            return (
+                rect1.x < rect2.x + rect2.width &&
+                rect1.x + rect1.width > rect2.x &&
+                rect1.y < rect2.y + rect2.height &&
+                rect1.y + rect1.height > rect2.y
+            );
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Camera follow with smooth interpolation
+            const targetCamX = player.x - canvas.width * 0.35;
+            const targetCamY = player.y - canvas.height * 0.55;
+            camera.x += (targetCamX - camera.x) * 0.08;
+            camera.y += (targetCamY - camera.y) * 0.08;
+
+            // 1. Draw Deep Space Background & Parallax Stars
+            drawBackground();
+
+            ctx.save();
+            ctx.translate(-camera.x, -camera.y);
+
+            // 2. Draw Checkpoints
+            checkpoints.forEach(drawCheckpoint);
+
+            // 3. Draw Finish Airlock Portal
+            drawFinishPortal();
+
+            // 4. Draw Platforms (Metallic high-tech textures)
+            platforms.forEach(drawPlatform);
+
+            // 5. Draw Kyber Crystals
+            crystals.forEach(drawCrystal);
+
+            // 6. Draw Security Droids
+            enemies.forEach(drawEnemy);
+
+            // 7. Draw Force Shockwaves
+            drawShockwaves();
+
+            // 8. Draw Particles
+            drawParticles();
+
+            // 9. Draw Darth Vader (Character)
+            drawVader();
+
+            ctx.restore();
+        }
+
+        function drawBackground() {
+            // Gradient space window
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGrad.addColorStop(0, '#040711');
+            bgGrad.addColorStop(0.5, '#070b16');
+            bgGrad.addColorStop(1, '#0a0d18');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Distant space nebula
+            const nebGrad = ctx.createRadialGradient(
+                canvas.width * 0.8 - camera.x * 0.03,
+                canvas.height * 0.25 - camera.y * 0.03,
+                20,
+                canvas.width * 0.8 - camera.x * 0.03,
+                canvas.height * 0.25 - camera.y * 0.03,
+                380
+            );
+            nebGrad.addColorStop(0, 'rgba(239, 68, 68, 0.12)');
+            nebGrad.addColorStop(0.5, 'rgba(79, 70, 229, 0.06)');
+            nebGrad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = nebGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Parallax Stars
+            stars.forEach(st => {
+                const px = (st.x - camera.x * st.speed + 4000) % 2000;
+                const py = (st.y - camera.y * st.speed + 3000) % 1200;
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.4 + Math.sin(Date.now() * 0.003 + st.pulse) * 0.3})`;
+                ctx.beginPath();
+                ctx.arc(px, py, st.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Star Destroyer Grid Structural Girders in background
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 2;
+            for (let gx = -camera.x * 0.1 % 100; gx < canvas.width; gx += 100) {
+                ctx.beginPath();
+                ctx.moveTo(gx, 0);
+                ctx.lineTo(gx, canvas.height);
+                ctx.stroke();
+            }
+        }
+
+        function drawPlatform(plat) {
+            // Main metallic block
+            ctx.fillStyle = plat.type === 'moving' ? '#182030' : '#141824';
+            ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+
+            // Top highlight runner line (Cyan / Red neon strip)
+            ctx.fillStyle = plat.type === 'moving' ? '#38bdf8' : '#ef4444';
+            ctx.shadowColor = plat.type === 'moving' ? '#0284c7' : '#dc2626';
+            ctx.shadowBlur = 8;
+            ctx.fillRect(plat.x, plat.y, plat.width, 3);
+            ctx.shadowBlur = 0; // reset
+
+            // Tech panel notches
+            ctx.fillStyle = '#2d3748';
+            for (let px = plat.x + 12; px < plat.x + plat.width - 12; px += 24) {
+                ctx.fillRect(px, plat.y + 10, 8, 4);
+            }
+
+            // Outer border
+            ctx.strokeStyle = '#273142';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(plat.x, plat.y, plat.width, plat.height);
+        }
+
+        function drawCrystal(c) {
+            if (c.collected) return;
+
+            const time = Date.now() * 0.005 + c.pulseOffset;
+            const floatY = c.y + Math.sin(time) * 4;
+
+            ctx.save();
+            ctx.translate(c.x, floatY);
+            ctx.rotate(time * 0.5);
+
+            // Glowing cyan Kyber crystal
+            ctx.shadowColor = '#38bdf8';
+            ctx.shadowBlur = 12;
+            ctx.fillStyle = '#7dd3fc';
+
+            ctx.beginPath();
+            ctx.moveTo(0, -c.radius * 1.3);
+            ctx.lineTo(c.radius, 0);
+            ctx.moveTo(0, c.radius * 1.3);
+            ctx.lineTo(-c.radius, 0);
+            ctx.closePath();
+
+            // Diamond Path
+            ctx.beginPath();
+            ctx.moveTo(0, -c.radius * 1.3);
+            ctx.lineTo(c.radius, 0);
+            ctx.lineTo(0, c.radius * 1.3);
+            ctx.lineTo(-c.radius, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            // Inner core
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0, 0, c.radius * 0.35, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawEnemy(enemy) {
+            if (!enemy.alive) return;
+
+            const hoverY = enemy.y + Math.sin(enemy.hoverAngle) * 3;
+
+            ctx.save();
+            ctx.translate(enemy.x + enemy.width / 2, hoverY + enemy.height / 2);
+
+            // If stunned, shake
+            if (enemy.stunnedTimer > 0) {
+                ctx.rotate((Math.random() - 0.5) * 0.3);
+            }
+
+            // Droid body (metallic sphere / oval)
+            ctx.fillStyle = '#262e3d';
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, enemy.width / 2, enemy.height / 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Glowing Red Eye Visor
+            ctx.fillStyle = enemy.stunnedTimer > 0 ? '#fbbf24' : '#ef4444';
+            ctx.shadowColor = enemy.stunnedTimer > 0 ? '#f59e0b' : '#dc2626';
+            ctx.shadowBlur = 10;
+            const eyeDir = enemy.vx > 0 ? 4 : -4;
+            ctx.fillRect(eyeDir - 4, -3, 8, 5);
+
+            // Antennas
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-6, -enemy.height / 2);
+            ctx.lineTo(-9, -enemy.height / 2 - 6);
+            ctx.moveTo(6, -enemy.height / 2);
+            ctx.lineTo(9, -enemy.height / 2 - 6);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawCheckpoint(cp) {
+            ctx.save();
+            // Pole
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(cp.x + 10, cp.y + 12, 4, cp.height - 12);
+
+            // Base
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(cp.x + 2, cp.y + cp.height - 6, 20, 6);
+
+            // Beacon Orb
+            ctx.fillStyle = cp.activated ? '#22c55e' : '#64748b';
+            ctx.shadowColor = cp.activated ? '#22c55e' : 'transparent';
+            ctx.shadowBlur = cp.activated ? 14 : 0;
+            ctx.beginPath();
+            ctx.arc(cp.x + 12, cp.y + 10, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawFinishPortal() {
+            ctx.save();
+            // Imperial Airlock Door Frame
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(finishPortal.x, finishPortal.y, finishPortal.width, finishPortal.height);
+
+            // Inner Holographic Force Field
+            const pulse = (Math.sin(Date.now() * 0.006) + 1) * 0.5;
+            const portalGrad = ctx.createLinearGradient(finishPortal.x, 0, finishPortal.x + finishPortal.width, 0);
+            portalGrad.addColorStop(0, 'rgba(6, 182, 212, 0.4)');
+            portalGrad.addColorStop(0.5, `rgba(56, 189, 248, ${0.4 + pulse * 0.4})`);
+            portalGrad.addColorStop(1, 'rgba(6, 182, 212, 0.4)');
+
+            ctx.fillStyle = portalGrad;
+            ctx.shadowColor = '#06b6d4';
+            ctx.shadowBlur = 18;
+            ctx.fillRect(finishPortal.x + 5, finishPortal.y + 5, finishPortal.width - 10, finishPortal.height - 5);
+
+            // Door Frame Accents
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(finishPortal.x, finishPortal.y, finishPortal.width, finishPortal.height);
+
+            ctx.restore();
+        }
+
+        function drawShockwaves() {
+            for (let i = shockwaves.length - 1; i >= 0; i--) {
+                const sw = shockwaves[i];
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(sw.x, sw.y, sw.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(239, 68, 68, ${sw.alpha})`;
+                ctx.lineWidth = 5;
+                ctx.shadowColor = '#dc2626';
+                ctx.shadowBlur = 18;
+                ctx.stroke();
+                ctx.restore();
+
+                sw.radius += 7;
+                sw.alpha -= 0.045;
+                if (sw.alpha <= 0) {
+                    shockwaves.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                p.size = Math.max(0.2, p.size - 0.08);
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawVader() {
+            // Invulnerability flashing effect
+            if (player.invulnerableTimer > 0 && Math.floor(player.invulnerableTimer / 4) % 2 === 0) {
+                return;
+            }
+
+            ctx.save();
+            ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+            if (!player.facingRight) {
+                ctx.scale(-1, 1);
+            }
+
+            const w = player.width;
+            const h = player.height;
+
+            // 1. Black Sith Flowing Cape (Back)
+            ctx.fillStyle = '#090a0f';
+            ctx.beginPath();
+            ctx.moveTo(-5, -h * 0.25);
+            ctx.quadraticCurveTo(-14 - player.capeSwing * 12, h * 0.1, -12 - player.capeSwing * 24, h * 0.48);
+            ctx.lineTo(2, h * 0.48);
+            ctx.closePath();
+            ctx.fill();
+
+            // 2. Body Armor & Tunic
+            ctx.fillStyle = '#13151b';
+            ctx.fillRect(-w * 0.35, -h * 0.25, w * 0.7, h * 0.45);
+
+            // Belt & Chest Life Support Console
+            ctx.fillStyle = '#222733';
+            ctx.fillRect(-w * 0.25, -h * 0.15, w * 0.5, h * 0.18);
+
+            // Blinking chest lights (Green and Red)
+            ctx.fillStyle = '#ef4444';
+            ctx.fillRect(-w * 0.18, -h * 0.12, 3, 3);
+            ctx.fillStyle = '#22c55e';
+            ctx.fillRect(-w * 0.05, -h * 0.12, 3, 3);
+            ctx.fillStyle = '#38bdf8';
+            ctx.fillRect(w * 0.08, -h * 0.12, 3, 3);
+
+            // Legs
+            ctx.fillStyle = '#0f1118';
+            ctx.fillRect(-w * 0.3, h * 0.2, w * 0.25, h * 0.3);
+            ctx.fillRect(w * 0.05, h * 0.2, w * 0.25, h * 0.3);
+
+            // 3. Darth Vader Iconic Helmet & Mask
+            ctx.fillStyle = '#1c202a';
+            // Dome
+            ctx.beginPath();
+            ctx.arc(0, -h * 0.34, w * 0.38, Math.PI, 0);
+            ctx.fill();
+            // Triangular breathing mask
+            ctx.beginPath();
+            ctx.moveTo(-w * 0.25, -h * 0.34);
+            ctx.lineTo(w * 0.25, -h * 0.34);
+            ctx.lineTo(w * 0.18, -h * 0.18);
+            ctx.lineTo(-w * 0.18, -h * 0.18);
+            ctx.closePath();
+            ctx.fill();
+
+            // Helmet flare bottom ridge
+            ctx.fillStyle = '#2d3343';
+            ctx.fillRect(-w * 0.38, -h * 0.26, w * 0.76, 2.5);
+
+            // 4. Red Glowing Lightsaber
+            const saberAngle = -0.3 + Math.sin(Date.now() * 0.008) * 0.05;
+            ctx.save();
+            ctx.translate(w * 0.25, 0);
+            ctx.rotate(saberAngle);
+
+            // Hilt
+            ctx.fillStyle = '#94a3b8';
+            ctx.fillRect(-2, -5, 4, 12);
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(-2, -1, 4, 3);
+
+            // Glowing Crimson Blade (Canvas bloom)
+            ctx.shadowColor = '#ff1a1a';
+            ctx.shadowBlur = 16;
+            ctx.strokeStyle = '#ff0033';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, -5);
+            ctx.lineTo(0, -42);
+            ctx.stroke();
+
+            // Bright white core
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.moveTo(0, -5);
+            ctx.lineTo(0, -40);
+            ctx.stroke();
+
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        function updateHUD() {
+            // Health Cores
+            let heartsHtml = '';
+            for (let i = 0; i < player.maxHealth; i++) {
+                if (i < player.health) {
+                    heartsHtml += '<span class="inline-block w-4 h-4 bg-red-600 rounded-sm shadow-md shadow-red-600/70 border border-red-400"></span>';
+                } else {
+                    heartsHtml += '<span class="inline-block w-4 h-4 bg-gray-800 rounded-sm border border-gray-700 opacity-40"></span>';
+                }
+            }
+            healthBarsEl.innerHTML = heartsHtml;
+
+            // Force cooldown meter
+            const forcePercent = Math.max(0, 100 - (player.forceCooldown / player.forceMaxCooldown) * 100);
+            forceMeterEl.style.width = `${forcePercent}%`;
+            if (player.forceCooldown <= 0) {
+                forceStatusEl.innerText = 'ГОТОВА';
+                forceStatusEl.className = 'text-red-400 font-bold';
+            } else {
+                forceStatusEl.innerText = 'ЗАРЯДКА...';
+                forceStatusEl.className = 'text-gray-500';
+            }
+
+            // Crystal counter
+            crystalCountEl.innerText = `${collectedCrystals} / ${totalCrystals}`;
+            levelDisplayEl.innerText = `1-${currentLevel}`;
+        }
+
+        function updateTimer() {
+            if (gameState === 'PLAYING') {
+                elapsedMilliseconds = Date.now() - levelStartTime;
+            }
+            const totalSec = Math.floor(elapsedMilliseconds / 1000);
+            const m = String(Math.floor(totalSec / 60)).padStart(2, '0');
+            const s = String(totalSec % 60).padStart(2, '0');
+            const ms = Math.floor((elapsedMilliseconds % 1000) / 100);
+            timerDisplayEl.innerText = `${m}:${s}.${ms}`;
+        }
+
+        function startGame() {
+            audio.init();
+            startScreenEl.classList.add('hidden');
+            winScreenEl.classList.add('hidden');
+            gameOverScreenEl.classList.add('hidden');
+            pauseScreenEl.classList.add('hidden');
+
+            generateStars();
+            generateLevel(currentLevel);
+
+            levelStartTime = Date.now();
+            gameState = 'PLAYING';
+        }
+
+        function togglePause() {
+            if (gameState === 'PLAYING') {
+                gameState = 'PAUSED';
+                pauseScreenEl.classList.remove('hidden');
+            } else if (gameState === 'PAUSED') {
+                gameState = 'PLAYING';
+                pauseScreenEl.classList.add('hidden');
+            }
+        }
+
+        function handleVictory() {
+            gameState = 'WIN';
+            audio.playWin();
+            winStatsTextEl.innerText = `Время: ${timerDisplayEl.innerText} | Кристаллы: ${collectedCrystals}/${totalCrystals}`;
+            winScreenEl.classList.remove('hidden');
+        }
+
+        function triggerGameOver() {
+            gameState = 'GAMEOVER';
+            gameOverScreenEl.classList.remove('hidden');
+        }
+
+        // Button Click Event Listeners
+        document.getElementById('btnStartGame').addEventListener('click', startGame);
+        document.getElementById('btnPause').addEventListener('click', togglePause);
+        document.getElementById('btnResume').addEventListener('click', togglePause);
+        document.getElementById('btnRestartLevel').addEventListener('click', () => {
+            pauseScreenEl.classList.add('hidden');
+            startGame();
+        });
+        document.getElementById('btnRetry').addEventListener('click', () => {
+            gameOverScreenEl.classList.add('hidden');
+            player.health = player.maxHealth;
+            player.x = player.checkpointX;
+            player.y = player.checkpointY;
+            player.vx = 0;
+            player.vy = 0;
+            gameState = 'PLAYING';
+            updateHUD();
+        });
+        document.getElementById('btnRestartWin').addEventListener('click', () => {
+            startGame();
+        });
+        document.getElementById('btnNextLevel').addEventListener('click', () => {
+            currentLevel++;
+            startGame();
+        });
+
+        function gameLoop() {
+            if (gameState === 'PLAYING') {
+                updatePlayer();
+                updateEnemies();
+                updateHUD();
+                updateTimer();
+            }
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start animation loop on window load
+        window.onload = function () {
+            generateStars();
+            drawBackground();
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
